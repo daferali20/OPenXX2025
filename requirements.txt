@@ -10,3 +10,4 @@ textblob
 requests
 vaderSentiment
 python-telegram-bot
+openai
