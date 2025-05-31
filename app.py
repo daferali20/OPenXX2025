@@ -5,8 +5,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import plotly.graph_objects as go
+import requests
 
-# جلب بيانات السهم (وهمية - استبدلها لاحقاً ب API حقيقي)
+# -- دوال جلب وتدريب البيانات (نفسها) --
 def get_stock_data(ticker):
     dates = pd.date_range(end=pd.Timestamp.today(), periods=30)
     data = {
@@ -15,17 +16,17 @@ def get_stock_data(ticker):
         'High': np.random.uniform(110, 115, 30),
         'Low': np.random.uniform(95, 105, 30),
         'Close': np.random.uniform(100, 110, 30),
+        'Volume': np.random.uniform(1000000, 3000000, 30).astype(int),  # حجم التداول
         'RSI': np.random.uniform(30, 70, 30),
         'SMA_20': np.random.uniform(100, 108, 30),
         'SMA_50': np.random.uniform(99, 107, 30),
         'MACD': np.random.uniform(-1, 1, 30),
-        'Target': np.random.choice([0,1], 30)  # عشوائي صعود/هبوط
+        'Target': np.random.choice([0,1], 30)
     }
     df = pd.DataFrame(data)
     df.set_index('Date', inplace=True)
     return df
 
-# تدريب النموذج
 def train_predictor(df):
     features = ['RSI', 'SMA_20', 'SMA_50', 'MACD']
     X = df[features]
@@ -37,8 +38,8 @@ def train_predictor(df):
     acc = accuracy_score(y_test, y_pred)
     return model, acc
 
-# كشف أنماط الشموع
 def detect_candlestick_patterns(df):
+    # نفس الدالة السابقة...
     patterns = []
     for i in range(len(df)):
         o = df['Open'].iloc[i]
@@ -70,7 +71,6 @@ def detect_candlestick_patterns(df):
         patterns.append(pattern)
     return patterns
 
-# رسم الشموع باستخدام Plotly
 def plot_candlestick(df):
     fig = go.Figure(data=[go.Candlestick(
         x=df.index,
@@ -83,7 +83,6 @@ def plot_candlestick(df):
     fig.update_layout(xaxis_rangeslider_visible=False, height=400)
     return fig
 
-# رسم RSI
 def plot_rsi(df):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI'))
@@ -92,18 +91,45 @@ def plot_rsi(df):
     fig.update_layout(height=250, title="مؤشر RSI")
     return fig
 
-# الصفحة الرئيسية
+# دالة إرسال رسالة تليجرام
+def send_telegram_alert(bot_token, chat_id, message):
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
+    try:
+        r = requests.post(url, data=payload)
+        return r.status_code == 200
+    except Exception as e:
+        return False
 
-st.set_page_config(page_title="تحليل الأسهم المتقدم مع AI والشموع", layout="wide")
-st.title("📊 تحليل الأسهم المتقدم مع التنبؤ والشموع اليابانية")
+# دالة الكشف عن اختراق المقاومة مع حجم تداول كبير
+def detect_breakout(df):
+    # مقاومة = أعلى سعر خلال آخر 10 أيام (مثال)
+    resistance_level = df['High'][-10:].max()
+    avg_volume = df['Volume'].rolling(window=10).mean().iloc[-1]
+    latest_close = df['Close'].iloc[-1]
+    latest_volume = df['Volume'].iloc[-1]
+
+    breakout = False
+    if (latest_close > resistance_level) and (latest_volume > avg_volume * 1.5):
+        breakout = True
+
+    return breakout, resistance_level, latest_volume
+
+# ---- التطبيق ----
+st.set_page_config(page_title="تحليل الأسهم المتقدم + إشعارات", layout="wide")
+st.title("📊 تحليل الأسهم المتقدم مع إشعارات الدخول القوية")
 
 ticker = st.text_input("ادخل رمز السهم (مثال: AAPL)", "AAPL")
+bot_token = st.text_input("رمز بوت تليجرام (Telegram Bot Token)", type="password")
+chat_id = st.text_input("معرف الدردشة في تليجرام (Telegram Chat ID)")
 
 if st.button("ابدأ التحليل"):
-    with st.spinner("جلب البيانات وتدريب النموذج..."):
+    with st.spinner("جلب البيانات وتحليلها..."):
         df = get_stock_data(ticker)
         model, acc = train_predictor(df)
         df['Pattern'] = detect_candlestick_patterns(df)
+
+        breakout, resistance_level, latest_volume = detect_breakout(df)
 
     st.success(f"✅ دقة النموذج: {acc:.2%}")
 
@@ -115,7 +141,24 @@ if st.button("ابدأ التحليل"):
     else:
         st.markdown(f"📉 التوقع: السهم <b>{ticker}</b> متجه للهبوط", unsafe_allow_html=True)
 
-    # تخطيط الشموع اليابانية و RSI بشكل جانبي
+    if breakout:
+        st.balloons()
+        st.success(f"🚀 تم كسر المقاومة عند {resistance_level:.2f} بحجم تداول {latest_volume:,}")
+
+        if bot_token and chat_id:
+            message = (
+                f"🚨 <b>تنبيه اختراق للسهم {ticker}</b>\n"
+                f"📌 مستوى المقاومة: {resistance_level:.2f}\n"
+                f"📈 حجم التداول: {latest_volume:,}"
+            )
+            sent = send_telegram_alert(bot_token, chat_id, message)
+            if sent:
+                st.info("تم إرسال التنبيه إلى تليجرام بنجاح ✅")
+            else:
+                st.error("فشل في إرسال التنبيه إلى تليجرام ❌")
+    else:
+        st.info("لا يوجد اختراق مقاومة قوي حاليا.")
+
     col1, col2 = st.columns([3,1])
 
     with col1:
@@ -123,7 +166,7 @@ if st.button("ابدأ التحليل"):
         st.plotly_chart(plot_candlestick(df), use_container_width=True)
 
         st.subheader("الأنماط المكتشفة للشموع")
-        st.dataframe(df[['Open', 'High', 'Low', 'Close', 'Pattern']])
+        st.dataframe(df[['Open', 'High', 'Low', 'Close', 'Volume', 'Pattern']])
 
     with col2:
         st.subheader("مؤشرات فنية")
