@@ -1,7 +1,12 @@
-streamlit==1.21.0
-scikit-learn==1.2.2
+streamlit
+scikit-learn
 pandas
 yfinance
 matplotlib
 plotly
 requests
+lxml
+textblob
+requests
+vaderSentiment
+python-telegram-bot
