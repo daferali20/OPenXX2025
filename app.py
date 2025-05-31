@@ -6,9 +6,19 @@ import plotly.express as px
 
 # مفاتيح API
 openai.api_key = "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"
-FINNHUB_API_KEY = "d0s63s1r01qkkplt7130d0s63s1r01qkkplt713g"
+
 
 # دوال جلب البيانات وإرسال تنبيهات تليجرام ...
+
+
+def fetch_news(ticker):
+    FINNHUB_API_KEY = "d0s63s1r01qkkplt7130d0s63s1r01qkkplt713g"
+    url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from=2023-01-01&to=2023-12-31&token={FINNHUB_API_KEY}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return []
 
 # تحليل مشاعر باستخدام OpenAI
 def sentiment_analysis_openai(text):
