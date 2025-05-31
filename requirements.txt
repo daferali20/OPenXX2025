@@ -1,0 +1,11 @@
+lxml
+textblob
+streamlit
+yfinance
+pandas
+requests
+plotly
+lxml
+vaderSentiment
+textblob
+python-telegram-bot
