@@ -87,10 +87,5 @@ if st.session_state.portfolio:
     st.dataframe(df)
     plot_portfolio_profit_loss(df)
 
-# مثال: إرسال تنبيه تليجرام عند سعر معين (يمكن توسيعها)
-if data is not None and not data.empty:
-    latest_close = data['c'].iloc[-1]
-    if latest_close > 150:
-        # أرسل تنبيه
-        pass
+
 
