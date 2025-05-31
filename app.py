@@ -7,17 +7,14 @@ from sklearn.metrics import accuracy_score
 import plotly.graph_objects as go
 import requests
 
-# إعداد الصفحة
 st.set_page_config(page_title="AI Stock Predictor", layout="wide")
 st.title("🔮 التنبؤ باتجاه السهم")
 
-# إدخال المستخدم
 ticker = st.text_input("ادخل رمز السهم", "AAPL")
 bot_token = st.text_input("Telegram Bot Token", type="password")
 chat_id = st.text_input("Telegram Chat ID")
 
-# تحميل البيانات
-@st.cache
+@st.cache_data(show_spinner=True)  # تعديل هنا: استخدام st.cache_data
 def get_stock_data(ticker):
     df = yf.download(ticker, period="1y", interval="1d")
     df['RSI'] = compute_rsi(df['Close'])
@@ -36,7 +33,6 @@ def compute_rsi(series, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-# تدريب النموذج
 def train_predictor(df):
     X = df[['RSI', 'SMA_20', 'SMA_50', 'MACD']]
     y = (df['Close'].shift(-1) > df['Close']).astype(int)
@@ -47,7 +43,6 @@ def train_predictor(df):
     acc = accuracy_score(y_test, y_pred)
     return model, acc
 
-# رسم البيانات
 def plot_stock_data(df):
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=df.index,
@@ -58,14 +53,12 @@ def plot_stock_data(df):
     fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], mode='lines', name='SMA 50'))
     st.plotly_chart(fig)
 
-# إرسال تنبيه عبر Telegram
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     params = {'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'}
     response = requests.get(url, params=params)
     return response
 
-# تنفيذ التحليل
 if st.button("ابدأ التحليل"):
     df = get_stock_data(ticker)
     model, acc = train_predictor(df)
