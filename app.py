@@ -3,11 +3,13 @@ import requests
 import pandas as pd
 import openai
 import plotly.express as px
-
+import yfinance as yf
 # مفاتيح API
 openai.api_key = "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"
 
-
+def fetch_stock_data(ticker):
+    df = yf.download(ticker, period="1mo", interval="1d")
+    return df
 # دوال جلب البيانات وإرسال تنبيهات تليجرام ...
 
 
