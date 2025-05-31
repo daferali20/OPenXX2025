@@ -4,26 +4,28 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+import plotly.graph_objects as go
 
-# --- دالة جلب بيانات السهم (وهمية هنا، يجب استبدالها بجلب البيانات الحقيقية) ---
+# جلب بيانات السهم (وهمية - استبدلها لاحقاً ب API حقيقي)
 def get_stock_data(ticker):
-    # هنا مكان استدعاء API لجلب بيانات يومية: Open, High, Low, Close, ... الخ
-    # للعرض نستخدم بيانات وهمية:
+    dates = pd.date_range(end=pd.Timestamp.today(), periods=30)
     data = {
-        'Open': [100, 102, 101, 98, 99, 100, 102, 103, 104, 105],
-        'High': [103, 105, 104, 100, 102, 104, 106, 107, 108, 109],
-        'Low': [99, 101, 97, 95, 98, 99, 101, 102, 103, 104],
-        'Close': [102, 101, 98, 99, 101, 103, 105, 106, 107, 108],
-        'RSI': np.random.uniform(30, 70, 10),
-        'SMA_20': np.random.uniform(100, 105, 10),
-        'SMA_50': np.random.uniform(99, 104, 10),
-        'MACD': np.random.uniform(-1, 1, 10),
-        'Target': [1, 0, 0, 1, 1, 1, 0, 1, 1, 0]  # صعود=1، هبوط=0
+        'Date': dates,
+        'Open': np.random.uniform(100, 110, 30),
+        'High': np.random.uniform(110, 115, 30),
+        'Low': np.random.uniform(95, 105, 30),
+        'Close': np.random.uniform(100, 110, 30),
+        'RSI': np.random.uniform(30, 70, 30),
+        'SMA_20': np.random.uniform(100, 108, 30),
+        'SMA_50': np.random.uniform(99, 107, 30),
+        'MACD': np.random.uniform(-1, 1, 30),
+        'Target': np.random.choice([0,1], 30)  # عشوائي صعود/هبوط
     }
     df = pd.DataFrame(data)
+    df.set_index('Date', inplace=True)
     return df
 
-# --- دالة تدريب النموذج ---
+# تدريب النموذج
 def train_predictor(df):
     features = ['RSI', 'SMA_20', 'SMA_50', 'MACD']
     X = df[features]
@@ -35,10 +37,9 @@ def train_predictor(df):
     acc = accuracy_score(y_test, y_pred)
     return model, acc
 
-# --- دالة كشف أنماط الشموع ---
+# كشف أنماط الشموع
 def detect_candlestick_patterns(df):
     patterns = []
-
     for i in range(len(df)):
         o = df['Open'].iloc[i]
         h = df['High'].iloc[i]
@@ -51,55 +52,85 @@ def detect_candlestick_patterns(df):
 
         pattern = ""
 
-        # Pin Bar: جسم صغير وظل علوي أو سفلي طويل
         if body < candle_range * 0.3 and (upper_shadow > body * 2 or lower_shadow > body * 2):
             pattern = "Pin Bar"
-        
-        # Doji: جسم صغير جداً
         elif body < candle_range * 0.1:
             pattern = "Doji"
-        
-        # Hammer: جسم صغير وظل سفلي طويل وظل علوي صغير
         elif lower_shadow > body * 2 and upper_shadow < body:
             pattern = "Hammer"
-        
-        # Engulfing يحتاج يومين
+
         if i > 0:
             prev_o = df['Open'].iloc[i-1]
             prev_c = df['Close'].iloc[i-1]
-            # صعودي Engulfing
             if prev_c < prev_o and c > o and o < prev_c and c > prev_o:
                 pattern = "Bullish Engulfing"
-            # هبوطي Engulfing
             elif prev_c > prev_o and c < o and o > prev_c and c < prev_o:
                 pattern = "Bearish Engulfing"
 
         patterns.append(pattern)
     return patterns
 
-# --- واجهة Streamlit ---
+# رسم الشموع باستخدام Plotly
+def plot_candlestick(df):
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index,
+        open=df['Open'],
+        high=df['High'],
+        low=df['Low'],
+        close=df['Close'],
+        name='الشموع اليابانية'
+    )])
+    fig.update_layout(xaxis_rangeslider_visible=False, height=400)
+    return fig
 
-st.set_page_config(page_title="AI Stock Predictor with Candlestick Patterns", layout="wide")
-st.title("🔮 التنبؤ باتجاه السهم مع تحليل الشموع اليابانية")
+# رسم RSI
+def plot_rsi(df):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI'))
+    fig.add_hline(y=70, line_dash="dash", line_color="red")
+    fig.add_hline(y=30, line_dash="dash", line_color="green")
+    fig.update_layout(height=250, title="مؤشر RSI")
+    return fig
 
-ticker = st.text_input("ادخل رمز السهم", "AAPL")
+# الصفحة الرئيسية
+
+st.set_page_config(page_title="تحليل الأسهم المتقدم مع AI والشموع", layout="wide")
+st.title("📊 تحليل الأسهم المتقدم مع التنبؤ والشموع اليابانية")
+
+ticker = st.text_input("ادخل رمز السهم (مثال: AAPL)", "AAPL")
 
 if st.button("ابدأ التحليل"):
-    df = get_stock_data(ticker)
+    with st.spinner("جلب البيانات وتدريب النموذج..."):
+        df = get_stock_data(ticker)
+        model, acc = train_predictor(df)
+        df['Pattern'] = detect_candlestick_patterns(df)
 
-    # تدريب النموذج والتنبؤ
-    model, acc = train_predictor(df)
     st.success(f"✅ دقة النموذج: {acc:.2%}")
 
     latest = df[["RSI", "SMA_20", "SMA_50", "MACD"]].iloc[-1:]
     prediction = model.predict(latest)[0]
 
     if prediction == 1:
-        st.markdown(f"📈 السهم <b>{ticker}</b> متوقع له <b>الصعود</b>", unsafe_allow_html=True)
+        st.markdown(f"📈 التوقع: السهم <b>{ticker}</b> متجه للصعود", unsafe_allow_html=True)
     else:
-        st.markdown(f"📉 السهم <b>{ticker}</b> متوقع له <b>الهبوط</b>", unsafe_allow_html=True)
+        st.markdown(f"📉 التوقع: السهم <b>{ticker}</b> متجه للهبوط", unsafe_allow_html=True)
 
-    # تحليل أنماط الشموع اليابانية
-    df['Pattern'] = detect_candlestick_patterns(df)
-    st.subheader("أنماط الشموع اليابانية المكتشفة")
-    st.write(df[['Open', 'High', 'Low', 'Close', 'Pattern']])
+    # تخطيط الشموع اليابانية و RSI بشكل جانبي
+    col1, col2 = st.columns([3,1])
+
+    with col1:
+        st.subheader("مخطط الشموع اليابانية")
+        st.plotly_chart(plot_candlestick(df), use_container_width=True)
+
+        st.subheader("الأنماط المكتشفة للشموع")
+        st.dataframe(df[['Open', 'High', 'Low', 'Close', 'Pattern']])
+
+    with col2:
+        st.subheader("مؤشرات فنية")
+        st.plotly_chart(plot_rsi(df), use_container_width=True)
+
+        st.markdown("### ملخص المؤشرات")
+        st.write(f"- متوسط RSI الحالي: {df['RSI'].iloc[-1]:.2f}")
+        st.write(f"- متوسط SMA_20 الحالي: {df['SMA_20'].iloc[-1]:.2f}")
+        st.write(f"- متوسط SMA_50 الحالي: {df['SMA_50'].iloc[-1]:.2f}")
+        st.write(f"- مؤشر MACD الحالي: {df['MACD'].iloc[-1]:.2f}")
