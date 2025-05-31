@@ -88,8 +88,9 @@ if st.session_state.portfolio:
     plot_portfolio_profit_loss(df)
 
 # مثال: إرسال تنبيه تليجرام عند سعر معين (يمكن توسيعها)
-if bot_token and chat_id and ticker:
-    data = fetch_stock_data(ticker)
-    if data and data['c'] > 150:  # شرط تنبيه مثالياً
-        msg = f"📈 تنبيه: السهم {ticker} تجاوز سعر 150. السعر الحالي: {data['c']}"
-        send_telegram_message(bot_token, chat_id, msg)
+if data is not None and not data.empty:
+    latest_close = data['c'].iloc[-1]
+    if latest_close > 150:
+        # أرسل تنبيه
+        pass
+
