@@ -1,11 +1,7 @@
-lxml
-textblob
-streamlit
-yfinance
+streamlit==1.21.0
+scikit-learn==1.2.2
 pandas
-requests
+yfinance
+matplotlib
 plotly
-lxml
-vaderSentiment
-textblob
-python-telegram-bot
+requests
